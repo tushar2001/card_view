@@ -1,4 +1,6 @@
 // import 'package:gallery_view/smooth_page_indicator_new/smooth_page_indicator.dart';
+import 'dart:math';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:scroll_to_index/scroll_to_index.dart';
@@ -18,23 +20,35 @@ class CarousalView extends StatefulWidget {
 class _CarousalViewState extends State<CarousalView> {
   final controller = PageController(keepPage: true);
   final scrollDirection = Axis.horizontal;
-  final dotSize = 15.0;
+  final dotSize = 10.0;
   final spaceBetweenDots = 10.0;
   final visibleDots = 8;
   late final AutoScrollController _autoScrollController;
   late List<String> imageUrls;
   int activePage = 0;
+  late int firstVisibleDot;
+  late int lastVisibleDot;
   bool isMovingForward = false;
+  bool isMovingBackward = false;
+  List<int> scale3 = [];
+  List<int> scale6 = [];
 
   @override
   void initState() {
     // TODO: implement initState
     super.initState();
+    firstVisibleDot = 0;
+    lastVisibleDot = visibleDots - 1;
     this.imageUrls = widget.imageUrls;
+    lastVisibleDot = visibleDots - 1;
     _autoScrollController = AutoScrollController(
       //choose vertical/horizontal
       axis: scrollDirection,
     );
+    if (visibleDots < imageUrls.length) {
+      scale3.add(7);
+      scale6.add(6);
+    }
   }
 
   double get computedDot => (visibleDots / 2);
@@ -57,26 +71,50 @@ class _CarousalViewState extends State<CarousalView> {
               );
             },
             onPageChanged: (page) {
-              bool isMovingForward = activePage < page;
-              setState(() {
-                this.isMovingForward = isMovingForward;
-                activePage = page;
-              });
+              this.isMovingForward = activePage < page;
+              this.isMovingBackward = activePage > page;
+              activePage = page;
 
               if (isMovingForward && page >= computedDot) {
                 _autoScrollController.scrollToIndex(page + 2);
               }
 
-              if (!isMovingForward &&
+              if (isMovingBackward &&
                   page <= (imageUrls.length - computedDot)) {
                 _autoScrollController.scrollToIndex(page - 2);
               }
+              if (isMovingForward &&
+                  activePage < imageUrls.length - 2 &&
+                  activePage == lastVisibleDot - 1) {
+                firstVisibleDot++;
+                lastVisibleDot++;
+              } else if (isMovingBackward &&
+                  activePage == firstVisibleDot + 1 &&
+                  activePage > 1) {
+                firstVisibleDot--;
+                lastVisibleDot--;
+              }
+              scale3.clear();
+              scale6.clear();
+              setState(() {
+                if (firstVisibleDot > 0) {
+                  scale3.add(firstVisibleDot);
+                  scale6.add(firstVisibleDot + 1);
+                }
+                if (lastVisibleDot < imageUrls.length - 1) {
+                  scale3.add(lastVisibleDot);
+                  scale6.add(lastVisibleDot - 1);
+                }
+              });
             },
           ),
           Positioned(
             bottom: 12,
             child: SizedBox(
-              width: (dotSize + spaceBetweenDots) * visibleDots,
+              width: (dotSize + spaceBetweenDots) *
+                  (visibleDots < imageUrls.length
+                      ? visibleDots
+                      : imageUrls.length),
               height: 40,
               child: ListView.separated(
                 controller: _autoScrollController,
@@ -86,12 +124,14 @@ class _CarousalViewState extends State<CarousalView> {
                 shrinkWrap: true,
                 itemBuilder: (context, index) {
                   bool isCurrentDot = index == activePage;
-                  var shouldReduceDot = activePage > computedDot + 1
-                      // || activePage < (imageUrls.length - computedDot)
-                      ;
-                  bool isFirstSmallDot = !isMovingForward &&
-                      shouldReduceDot &&
-                      index < activePage - computedDot;
+                  double scale = 1;
+                  for (int itemIndex in scale3) {
+                    if (index == itemIndex) scale = 0.6;
+                  }
+                  for (int itemIndex in scale6) {
+                    if (index == itemIndex) scale = 0.8;
+                  }
+
                   return AutoScrollTag(
                     key: ValueKey(index),
                     controller: _autoScrollController,
@@ -100,13 +140,17 @@ class _CarousalViewState extends State<CarousalView> {
                       width: dotSize,
                       height: dotSize,
                       child: FractionallySizedBox(
-                        widthFactor: isFirstSmallDot ? 0.4 : 1,
-                        heightFactor: isFirstSmallDot ? 0.4 : 1,
+                        widthFactor: scale,
+                        heightFactor: scale,
                         child: DecoratedBox(
                           decoration: BoxDecoration(
-                            color: isCurrentDot ? Colors.blue : Colors.red,
-                            shape: BoxShape.circle,
-                          ),
+                              color: Colors.transparent,
+                              border: Border.all(
+                                  color: (isCurrentDot)
+                                      ? Colors.white
+                                      : Colors.blueGrey,
+                                  width: (isCurrentDot) ? 3 : 2),
+                              shape: BoxShape.circle),
                         ),
                       ),
                     ),
